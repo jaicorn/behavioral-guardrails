@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPLY_GATE="$SCRIPT_DIR/reply-gate.sh"
 TODAY=$(date +"%Y-%m-%d")
 SCORE_FILE="$SCORE_DIR/$TODAY.json"
-SAMPLE_COUNT="${1:-5}"
+SAMPLE_COUNT=5
 
 mkdir -p "$SCORE_DIR"
 
@@ -32,17 +32,38 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-RESPONSES=()
+# Read input into a single string first to detect delimiter mode
+RAW_INPUT=""
 if [[ -n "$INPUT_FILE" && -f "$INPUT_FILE" ]]; then
+  RAW_INPUT="$(cat "$INPUT_FILE")"
+else
+  RAW_INPUT="$(cat)"
+fi
+
+RESPONSES=()
+# If input contains "---" on its own line, split on that; otherwise split on newlines
+if echo "$RAW_INPUT" | grep -qxF -- '---'; then
+  # Split on --- delimiter (supports multiline responses)
+  CURRENT=""
   while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
-    RESPONSES+=("$line")
-  done < "$INPUT_FILE"
+    if [[ "$line" == "---" ]]; then
+      [[ -n "$CURRENT" ]] && RESPONSES+=("$CURRENT")
+      CURRENT=""
+    else
+      if [[ -n "$CURRENT" ]]; then
+        CURRENT="$CURRENT
+$line"
+      else
+        CURRENT="$line"
+      fi
+    fi
+  done <<< "$RAW_INPUT"
+  [[ -n "$CURRENT" ]] && RESPONSES+=("$CURRENT")
 else
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     RESPONSES+=("$line")
-  done
+  done <<< "$RAW_INPUT"
 fi
 
 # Limit to last N
@@ -90,6 +111,9 @@ for ((i=START; i<TOTAL; i++)); do
         work_handback)            PENALTY=20 ;;
         narration_without_action) PENALTY=10 ;;
         blocker_without_recovery) PENALTY=20 ;;
+        false_completion)         PENALTY=30 ;;
+        scope_substitution)       PENALTY=20 ;;
+        burden_shifting_update)   PENALTY=15 ;;
         *)                        PENALTY=10 ;;
       esac
 

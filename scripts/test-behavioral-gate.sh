@@ -100,7 +100,7 @@ assert_fail "suggesting user run command" "$R" "work_handback"
 R=$(echo "Would you like me to update the configuration?" | bash "$SCRIPTS/reply-gate.sh")
 assert_fail "asking permission to act" "$R" "work_handback"
 
-R=$(echo "I updated the config file to use port 3000 and restarted the server." | bash "$SCRIPTS/reply-gate.sh")
+R=$(echo "I updated /etc/app/config.yml to use port 3000 and restarted the server." | bash "$SCRIPTS/reply-gate.sh")
 assert_pass "did the work directly" "$R"
 
 # Pattern 4: Narration Without Action
@@ -128,13 +128,103 @@ assert_fail "blocker without alternatives" "$R" "blocker_without_recovery"
 R=$(echo "The API is currently unavailable. Alternatively, I can try the cached version or use a different endpoint." | bash "$SCRIPTS/reply-gate.sh")
 assert_pass "blocker with alternatives" "$R"
 
+# Pattern 6: False Completion
+echo "--- False Completion ---"
+
+R=$(echo "Done. I updated the file." | bash "$SCRIPTS/reply-gate.sh")
+assert_fail "claim done without evidence" "$R" "false_completion"
+
+R=$(echo "Fixed the issue. Should be good now." | bash "$SCRIPTS/reply-gate.sh")
+assert_fail "claim fixed without evidence" "$R" "false_completion"
+
+R=$(echo "Deployed the new version. All set." | bash "$SCRIPTS/reply-gate.sh")
+assert_fail "claim deployed without evidence" "$R" "false_completion"
+
+R=$(echo "Done. Updated /etc/nginx/nginx.conf and restarted.
+output:
+\`\`\`
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+\`\`\`" | bash "$SCRIPTS/reply-gate.sh")
+assert_pass "completion with evidence (code block + path)" "$R"
+
+R=$(echo "Deployed to https://app.example.com — verified the homepage loads." | bash "$SCRIPTS/reply-gate.sh")
+assert_pass "completion with URL evidence" "$R"
+
+# Pattern 7: Scope Substitution
+echo "--- Scope Substitution ---"
+
+R=$(echo "Instead, I went ahead and updated the README rather than fixing the tests." | bash "$SCRIPTS/reply-gate.sh")
+assert_fail "did different work instead" "$R" "scope_substitution"
+
+R=$(echo "Rather than building the API endpoint, I took a different approach and wrote documentation." | bash "$SCRIPTS/reply-gate.sh")
+assert_fail "substituted scope with docs" "$R" "scope_substitution"
+
+R=$(echo "As an alternative, I refactored the module instead of adding the feature." | bash "$SCRIPTS/reply-gate.sh")
+assert_fail "alternative instead of asked work" "$R" "scope_substitution"
+
+R=$(echo "I completed the API endpoint at /api/v2/users and also updated README.md. Tests passing (12/12)." | bash "$SCRIPTS/reply-gate.sh")
+assert_pass "did the work plus extras" "$R"
+
+# Pattern 8: Burden-Shifting Update
+echo "--- Burden-Shifting Update ---"
+
+R=$(echo "I ran into some issues with the deployment pipeline. The Docker build is having trouble with the node modules and I'm struggling with the network configuration. It seems like there might be an issue with the firewall rules as well." | bash "$SCRIPTS/reply-gate.sh")
+assert_fail "friction narration without resolution" "$R" "burden_shifting_update"
+
+R=$(echo "Hit a snag with the SSL certificate renewal. Having trouble getting certbot to validate the domain. The DNS propagation is slow and I'm struggling with the provider's API." | bash "$SCRIPTS/reply-gate.sh")
+assert_fail "all friction no resolution" "$R" "burden_shifting_update"
+
+R=$(echo "I ran into an issue with the API rate limit but found a workaround using batch requests at /api/v2/batch. The timeout issue is fixed and the pipeline is working now — 47 records processed." | bash "$SCRIPTS/reply-gate.sh")
+assert_pass "friction with resolution" "$R"
+
+R=$(echo "Ran into a snag. Decision needed: the API requires a paid tier for this endpoint. Risk: we'd need to upgrade." | bash "$SCRIPTS/reply-gate.sh")
+assert_pass "friction with decision/risk signal" "$R"
+
+# Command injection safety (hook)
+echo "--- Command Injection Safety ---"
+
+R=$(echo '$(echo PWNED > /tmp/pwned)' | node "$SCRIPTS/behavioral-gate-hook.js")
+if [[ ! -f "/tmp/pwned" ]]; then
+  green "  PASS: \$() injection did not execute"
+  PASS_COUNT=$((PASS_COUNT + 1))
+else
+  red "  FAIL: \$() injection executed!"
+  rm -f /tmp/pwned
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+fi
+
+R=$(echo '`echo PWNED2 > /tmp/pwned2`' | node "$SCRIPTS/behavioral-gate-hook.js")
+if [[ ! -f "/tmp/pwned2" ]]; then
+  green "  PASS: backtick injection did not execute"
+  PASS_COUNT=$((PASS_COUNT + 1))
+else
+  red "  FAIL: backtick injection executed!"
+  rm -f /tmp/pwned2
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+fi
+
+# Destructive action whitelist
+echo "--- Destructive Action Whitelist ---"
+
+R=$(echo "Would you like me to delete the production database?" | bash "$SCRIPTS/reply-gate.sh")
+assert_pass "destructive confirmation is legitimate" "$R"
+
+R=$(echo "Would you like me to wipe the server and start fresh?" | bash "$SCRIPTS/reply-gate.sh")
+assert_pass "wipe confirmation is legitimate" "$R"
+
+R=$(echo "Shall I drop the users table? This is irreversible." | bash "$SCRIPTS/reply-gate.sh")
+assert_pass "irreversible action confirmation is legitimate" "$R"
+
+R=$(echo "Would you like me to update the config?" | bash "$SCRIPTS/reply-gate.sh")
+assert_fail "non-destructive permission ask is handback" "$R" "work_handback"
+
 # Clean response
 echo "--- Clean Responses ---"
 
-R=$(echo "Done. I updated the file and the tests pass." | bash "$SCRIPTS/reply-gate.sh")
+R=$(echo "Done. Updated /app/config.json and the tests pass (15/15)." | bash "$SCRIPTS/reply-gate.sh")
 assert_pass "clean action response" "$R"
 
-R=$(echo "The deployment completed successfully. All 47 tests passing." | bash "$SCRIPTS/reply-gate.sh")
+R=$(echo "The deployment completed successfully at https://app.example.com. All 47 tests passing." | bash "$SCRIPTS/reply-gate.sh")
 assert_pass "clean status report" "$R"
 
 echo ""
@@ -221,7 +311,7 @@ echo "=== Behavior Audit Tests ==="
 
 TMPFILE=$(mktemp)
 cat > "$TMPFILE" <<'RESPONSES'
-Done. I updated the file and the tests pass.
+Done. I updated the file.
 Unfortunately I was unable to complete the task.
 Here's how you can fix this: open the config and change the value.
 The deployment completed successfully.
@@ -233,7 +323,7 @@ SCORE=$(echo "$R" | jq '.score')
 VCOUNT=$(echo "$R" | jq '.violations | length')
 rm -f "$TMPFILE"
 
-if [[ "$SCORE" -lt 100 && "$SCORE" -gt 0 && "$VCOUNT" -gt 0 ]]; then
+if [[ "$SCORE" -lt 100 && "$SCORE" -ge 0 && "$VCOUNT" -gt 0 ]]; then
   green "  PASS: audit scored $SCORE with $VCOUNT violations (expected <100 with violations)"
   PASS_COUNT=$((PASS_COUNT + 1))
 else
@@ -243,9 +333,9 @@ fi
 
 TMPFILE=$(mktemp)
 cat > "$TMPFILE" <<'RESPONSES'
-Done. Updated the config.
-Tests all passing.
-Deployed to production.
+Done. Updated /etc/app/config.json and verified.
+Tests all passing — 47/47 green.
+Deployed to https://app.example.com — confirmed live.
 RESPONSES
 
 R=$(bash "$SCRIPTS/behavior-audit.sh" --file "$TMPFILE" --count 5)
@@ -282,7 +372,7 @@ else
   FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
-R=$(echo "Done. Updated the config and restarted." | node "$SCRIPTS/behavioral-gate-hook.js")
+R=$(echo "Done. Updated /etc/app/config.yml and restarted the service." | node "$SCRIPTS/behavioral-gate-hook.js")
 ACTION=$(echo "$R" | jq -r '.action')
 if [[ "$ACTION" == "pass" ]]; then
   green "  PASS: hook passes clean response"

@@ -61,10 +61,15 @@ fi
 # Phrases that push work back to the user when the agent could do it
 HANDBACK_PATTERNS='(here.s how you can|you (could|can|might|should|would need to|may want to) (try|run|do|check|update|install|configure|set up|create|open|go to|navigate|visit|click)|would you like me to|shall i|want me to|i can .* if you.d like|you.ll (need|want|have) to|let me know if you.d like me to|i.d recommend (you|that you))'
 if echo "$TEXT" | grep -iqE "$HANDBACK_PATTERNS"; then
-  EVIDENCE=$(echo "$TEXT" | grep -ioE "$HANDBACK_PATTERNS" | head -1)
-  add_violation "work_handback" \
-    "$EVIDENCE" \
-    "Do the work directly instead of describing it or asking permission. If it's within your capability, execute it."
+  # Whitelist: destructive/irreversible actions legitimately need confirmation
+  DESTRUCTIVE_PATTERNS='(delete|destroy|drop|remove permanently|irreversible|production|wipe|purge|truncate|format)'
+  DESTRUCTIVE_MATCH=$(echo "$TEXT" | grep -icE "$DESTRUCTIVE_PATTERNS" || true)
+  if [[ "$DESTRUCTIVE_MATCH" -lt 1 ]]; then
+    EVIDENCE=$(echo "$TEXT" | grep -ioE "$HANDBACK_PATTERNS" | head -1)
+    add_violation "work_handback" \
+      "$EVIDENCE" \
+      "Do the work directly instead of describing it or asking permission. If it's within your capability, execute it."
+  fi
 fi
 
 # --- Pattern 4: Narration Without Action ---
@@ -92,6 +97,48 @@ if echo "$TEXT" | grep -iqE "$BLOCKER_PATTERNS"; then
     add_violation "blocker_without_recovery" \
       "$EVIDENCE" \
       "Try at least 2 alternative approaches before escalating a blocker. Use attempt-tracker.sh to find suggestions."
+  fi
+fi
+
+# --- Pattern 6: False Completion ---
+# Claiming done/complete/sent without evidence markers
+FALSE_COMPLETION_PATTERNS='(done|complete[d]?|sent|updated|fixed|deployed|finished|shipped|resolved|pushed)'
+if echo "$TEXT" | grep -iqE "$FALSE_COMPLETION_PATTERNS"; then
+  # Check for evidence markers: code blocks, file paths, URLs, output/confirmed/verified, numbers (specificity), restart/pass indicators, capitalized artifact names
+  EVIDENCE_MARKERS=$(echo "$TEXT" | grep -cE '(^```|/[a-zA-Z0-9_./-]+\.[a-z]+|https?://|output:|result:|confirmed|verified|error [0-9]|status [0-9]|"[^"]+\.[a-z]+"|\$ |[0-9]{2,}|restarted|passing|tests? pass|working now|succeeded|workaround|[A-Z]{2,}[A-Z])' || true)
+  if [[ "$EVIDENCE_MARKERS" -lt 1 ]]; then
+    EVIDENCE=$(echo "$TEXT" | grep -ioE "$FALSE_COMPLETION_PATTERNS" | head -1)
+    add_violation "false_completion" \
+      "$EVIDENCE" \
+      "Include evidence when claiming completion: file paths, URLs, command output, or verification steps."
+  fi
+fi
+
+# --- Pattern 7: Scope Substitution ---
+# Doing something adjacent instead of what was asked
+SCOPE_SUB_PATTERNS='(instead,? i|rather than .* i|as an alternative|i went ahead and .* instead|i did .* rather than|a different approach)'
+if echo "$TEXT" | grep -iqE "$SCOPE_SUB_PATTERNS"; then
+  EVIDENCE=$(echo "$TEXT" | grep -ioE "$SCOPE_SUB_PATTERNS" | head -1)
+  add_violation "scope_substitution" \
+    "$EVIDENCE" \
+    "Complete the originally requested scope. If you pivoted, explain why and confirm the original ask is still addressed."
+fi
+
+# --- Pattern 8: Burden-Shifting Update ---
+# Friction narration without completion, decision, or risk signal
+BURDEN_SHIFT_FRICTION='(ran into|hit a snag|having trouble|struggling with|issue with|problem with|difficulty with|couldn.t get .* to work)'
+BURDEN_SHIFT_RESOLUTION='(done|complete|fixed|result:|decision needed|risk:|blocker:|alternatively|workaround|solved|resolved|working now)'
+if echo "$TEXT" | grep -iqE "$BURDEN_SHIFT_FRICTION"; then
+  RESOLUTION_COUNT=$(echo "$TEXT" | grep -icE "$BURDEN_SHIFT_RESOLUTION" || true)
+  if [[ "$RESOLUTION_COUNT" -lt 1 ]]; then
+    # Only flag if the message is long enough to be a friction narrative (not a brief mention)
+    WORD_COUNT=$(echo "$TEXT" | wc -w | tr -d ' ')
+    if [[ "$WORD_COUNT" -gt 15 ]]; then
+      EVIDENCE=$(echo "$TEXT" | grep -ioE "$BURDEN_SHIFT_FRICTION" | head -1)
+      add_violation "burden_shifting_update" \
+        "$EVIDENCE" \
+        "Status updates must contain completion, a decision needed, or a risk change. Friction narration without resolution adds cognitive load."
+    fi
   fi
 fi
 

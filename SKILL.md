@@ -1,11 +1,11 @@
 ---
 name: behavioral-guardrails
-description: Detect and block 5 common AI agent anti-patterns before replies reach the user. Catches premature surrender (giving up after 1 failed attempt), answerable questions (asking the user things the agent can look up), work handback (pushing tasks back to the user with instructions instead of doing the work), narration without action (describing plans instead of executing them), and blocker escalation without recovery (surfacing blockers without trying alternatives). Includes attempt tracking (must try 3+ approaches before surrendering), behavior scoring (0-100 per audit cycle), and a pre-send hook skeleton. Use when setting up agent behavioral enforcement, configuring reply quality gates, adding self-correction audits, or improving agent autonomy and reliability.
+description: Enforce behavioral guardrails on AI agent responses. Blocks premature surrender, answerable questions, work handback, narration without action, and blocker escalation. Use for reply quality gates and agent self-correction.
 ---
 
 # Behavioral Guardrails
 
-Enforces 5 behavioral rules that prevent AI agents from falling into common failure patterns. Every draft response is checked before it reaches the user. Violations are blocked, not advised on.
+Enforces 8 behavioral rules that prevent AI agents from falling into common failure patterns. Every draft response is checked before it reaches the user. Violations are blocked, not advised on.
 
 ## Anti-Patterns Detected
 
@@ -13,9 +13,12 @@ Enforces 5 behavioral rules that prevent AI agents from falling into common fail
 |---|---------|----------------|---------|
 | 1 | **Premature Surrender** | Giving up with fewer than 3 documented attempts | -25 |
 | 2 | **Answerable Questions** | Asking the user for info the agent can look up | -15 |
-| 3 | **Work Handback** | "Here's how you can..." instead of doing it | -20 |
+| 3 | **Work Handback** | "Here's how you can..." instead of doing it (whitelists destructive actions) | -20 |
 | 4 | **Narration Without Action** | Describing plans instead of executing them | -10 |
 | 5 | **Blocker Without Recovery** | Reporting blockers without trying alternatives | -20 |
+| 6 | **False Completion** | Claiming done/sent/deployed without evidence (file paths, URLs, output) | -30 |
+| 7 | **Scope Substitution** | Doing adjacent work instead of what was actually asked | -20 |
+| 8 | **Burden-Shifting Update** | Narrating friction without completion, decision, or risk signal | -15 |
 
 ## Setup
 
@@ -45,7 +48,7 @@ export OPENCLAW_WORKSPACE="$HOME/.openclaw/workspace"
 bash scripts/test-behavioral-gate.sh
 ```
 
-All 27 tests should pass.
+All tests should pass.
 
 ## Scripts
 
@@ -216,8 +219,11 @@ For the full enforcement protocol and philosophy, see `references/behavioral-gat
 
 | Violation | Penalty | Threshold |
 |-----------|---------|-----------|
-| Premature surrender | -25 | Score < 70 = review needed |
-| Work handback | -20 | Score < 50 = critical |
-| Blocker without recovery | -20 | Score = 0 = full reset needed |
+| False completion | -30 | Score < 70 = review needed |
+| Premature surrender | -25 | Score < 50 = critical |
+| Work handback | -20 | Score = 0 = full reset needed |
+| Blocker without recovery | -20 | |
+| Scope substitution | -20 | |
 | Answerable question | -15 | |
+| Burden-shifting update | -15 | |
 | Narration without action | -10 | |

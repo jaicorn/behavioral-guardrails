@@ -23,10 +23,10 @@ const REPLY_GATE = path.join(SCRIPT_DIR, 'reply-gate.sh');
  */
 function runReplyGate(draft) {
   try {
-    const result = execSync(`echo "${draft.replace(/"/g, '\\"')}" | bash "${REPLY_GATE}"`, {
+    const result = execSync(`bash "${REPLY_GATE}"`, {
+      input: draft,
       encoding: 'utf-8',
       timeout: 5000,
-      stdio: ['pipe', 'pipe', 'pipe'],
     });
     return JSON.parse(result.trim());
   } catch (err) {

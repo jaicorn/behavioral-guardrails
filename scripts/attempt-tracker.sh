@@ -58,6 +58,7 @@ case "$COMMAND" in
   log)
     [[ -z "$TASK" ]] && echo "Error: --task required" && exit 1
     [[ -z "$METHOD" ]] && echo "Error: --method required" && exit 1
+    [[ -z "$RESULT" ]] && RESULT="no result recorded"
 
     FILE=$(task_file "$TASK")
     TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
