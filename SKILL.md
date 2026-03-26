@@ -1,6 +1,7 @@
 ---
 name: behavioral-guardrails
-description: Enforce behavioral guardrails on AI agent responses. Blocks premature surrender, answerable questions, work handback, narration without action, and blocker escalation. Use for reply quality gates and agent self-correction.
+description: Enforce behavioral guardrails on AI agent responses. Blocks 8 anti-patterns — premature surrender, answerable questions, work handback, narration without action, blocker without recovery, false completion, scope substitution, and burden-shifting updates. Use for reply quality gates and agent self-correction.
+version: 1.0.0
 ---
 
 # Behavioral Guardrails
@@ -25,7 +26,8 @@ Enforces 8 behavioral rules that prevent AI agents from falling into common fail
 ### Prerequisites
 
 - `jq` installed (`brew install jq` / `apt install jq`)
-- `bash` 4+ and `node` (for the hook)
+- `bash` 4+
+- `node` (optional — only needed for the JS hook integration)
 
 ### Install
 
@@ -54,7 +56,7 @@ All tests should pass.
 
 ### `scripts/reply-gate.sh` — Pre-Reply Gate
 
-The core enforcement script. Analyzes text for all 5 anti-patterns and returns a pass/fail verdict with violation details.
+The core enforcement script. Analyzes text for all 8 anti-patterns and returns a pass/fail verdict with violation details.
 
 **Usage:**
 
@@ -153,7 +155,7 @@ echo "Done. Config updated." | node scripts/behavioral-gate-hook.js
 
 ### `scripts/test-behavioral-gate.sh` — Test Suite
 
-Comprehensive test suite covering all 5 anti-patterns, attempt tracking, behavior audit scoring, and the JS hook. Run to verify everything works:
+Comprehensive test suite covering all 8 anti-patterns, attempt tracking, behavior audit scoring, and the JS hook. Run to verify everything works:
 
 ```bash
 bash scripts/test-behavioral-gate.sh

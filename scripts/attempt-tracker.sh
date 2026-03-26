@@ -3,8 +3,8 @@
 # State stored in /tmp/openclaw-attempts/ (ephemeral, per-session)
 set -euo pipefail
 
-STATE_DIR="/tmp/openclaw-attempts"
-MINIMUM_ATTEMPTS=3
+STATE_DIR="${BEHAVIORAL_GATE_STATE_DIR:-/tmp/openclaw-attempts}"
+MINIMUM_ATTEMPTS="${BEHAVIORAL_GATE_MIN_ATTEMPTS:-3}"
 
 mkdir -p "$STATE_DIR"
 
@@ -112,7 +112,7 @@ case "$COMMAND" in
     [[ -z "$TASK" ]] && echo "Error: --task required" && exit 1
     FILE=$(task_file "$TASK")
     rm -f "$FILE"
-    echo "{\"cleared\": \"$TASK\"}"
+    jq -n --arg t "$TASK" '{cleared: $t}'
     ;;
 
   clear-all)

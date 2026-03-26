@@ -1,0 +1,7 @@
+.DS_Store
+node_modules/
+data/
+data/behavior-scores/
+*.pyc
+__pycache__/
+.env
