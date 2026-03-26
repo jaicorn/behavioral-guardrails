@@ -10,11 +10,17 @@
 - 48-test suite covering all patterns, edge cases, and injection safety
 - Destructive action whitelists (delete, wipe, irreversible ops exempt from handback checks)
 - Evidence marker detection for completion claims (paths, URLs, code blocks)
-- README, LICENSE (MIT), .gitignore, CHANGELOG
-- Full env var configuration: `BEHAVIORAL_GATE_STATE_DIR`, `BEHAVIORAL_GATE_MIN_ATTEMPTS`, `OPENCLAW_WORKSPACE`
+- README with real failure examples, architecture diagram, component deep-dives
+- LICENSE (MIT), .gitignore, CHANGELOG
+- Full env var configuration: `BEHAVIORAL_GATE_STATE_DIR`, `BEHAVIORAL_GATE_MIN_ATTEMPTS`
 
-### Fixed
-- SKILL.md description updated to list all 8 anti-patterns (was 5)
-- Stale "5 anti-patterns" references updated to "8"
+### Changed
+- SKILL.md description updated to list all 8 anti-patterns
 - Node marked as optional prerequisite (only needed for JS hook)
-- Clear command uses `jq` for safe JSON output instead of bash interpolation
+- Clear command uses `jq` for safe JSON output
+- Command injection fix in hook (stdin pipe instead of template interpolation)
+
+### History
+- Initial development included 5 patterns (premature surrender, answerable questions, work handback, narration without action, blocker without recovery)
+- Three patterns added based on real operational failures: false completion (-30), scope substitution (-20), burden-shifting (-15)
+- 29-test suite expanded to 48 tests covering all 8 patterns
